@@ -1,4 +1,5 @@
 from pathlib import Path
+from time import perf_counter
 from typing import Optional
 from uuid import uuid4
 
@@ -170,12 +171,14 @@ def generate_mask(image_id: str, payload: MaskRequest) -> dict:
     mask_path = OUTPUT_DIR / mask_name
     overlay_path = OUTPUT_DIR / overlay_name
 
+    started_at = perf_counter()
     stats = create_mask(
         image_path=image_path,
         points=[(int(round(point.x)), int(round(point.y)), point.label) for point in points],
         mask_path=mask_path,
         overlay_path=overlay_path,
     )
+    stats["elapsed_seconds"] = round(perf_counter() - started_at, 3)
 
     return {
         "image_id": image_id,

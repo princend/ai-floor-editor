@@ -82,8 +82,9 @@ const translations = {
     includeMode: "包含模式：點選地板區域。",
     excludeMode: "排除模式：點選椅子、沙發或不應該進入 mask 的物件。",
     generatingMask: "正在產生 mask...",
+    maskRunning: "Mask 產生中... {seconds}s",
     addIncludePoint: "產生 mask 前至少要有一個包含地板點。",
-    maskReady: "Mask 完成：{include} 個包含點、{exclude} 個排除點。覆蓋率：{coverage}%。演算法：{algorithm}.{device}",
+    maskReady: "Mask 完成：{include} 個包含點、{exclude} 個排除點。覆蓋率：{coverage}%。後端耗時：{backendSeconds}s；總等待：{clientSeconds}s。演算法：{algorithm}.{device}",
     needMask: "請先產生地板 mask，再建立預覽。",
     needTexture: "使用材質貼圖前，請先上傳材質圖片。",
     uploadingTexture: "正在上傳材質圖...",
@@ -155,8 +156,9 @@ const translations = {
     includeMode: "Include mode: click floor areas.",
     excludeMode: "Exclude mode: click chairs, sofas, or objects to remove.",
     generatingMask: "Generating mask...",
+    maskRunning: "Mask running... {seconds}s",
     addIncludePoint: "Add at least one include floor point before generating a mask.",
-    maskReady: "Mask ready from {include} include and {exclude} exclude point(s). Coverage: {coverage}%. Algorithm: {algorithm}.{device}",
+    maskReady: "Mask ready from {include} include and {exclude} exclude point(s). Coverage: {coverage}%. Backend: {backendSeconds}s; total wait: {clientSeconds}s. Algorithm: {algorithm}.{device}",
     needMask: "Generate a mask before creating a floor preview.",
     needTexture: "Upload a material texture before using texture match.",
     uploadingTexture: "Uploading texture...",
@@ -202,6 +204,7 @@ const state = {
   lang: "zh",
   materialMeta: null,
   previewTimer: null,
+  maskTimer: null,
 };
 
 applyLanguage("zh");
@@ -417,7 +420,8 @@ inpaintButton.addEventListener("click", async () => {
 });
 
 async function generateMask() {
-  setStatus(t("generatingMask"));
+  const startedAt = Date.now();
+  startMaskBusy(startedAt);
   maskButton.disabled = true;
 
   try {
@@ -431,6 +435,7 @@ async function generateMask() {
       body: JSON.stringify({ points: state.points }),
     });
     const data = await readJson(response);
+    const clientSeconds = ((Date.now() - startedAt) / 1000).toFixed(2);
     state.overlayUrl = data.overlay_url;
     state.overlay = await imageFromUrl(`${data.overlay_url}?t=${Date.now()}`);
     state.result = null;
@@ -444,12 +449,15 @@ async function generateMask() {
       include: data.stats.positive_point_count || 0,
       exclude: data.stats.negative_point_count || 0,
       coverage: (data.stats.mask_coverage * 100).toFixed(1),
+      backendSeconds: Number(data.stats.elapsed_seconds || 0).toFixed(2),
+      clientSeconds,
       algorithm: data.stats.algorithm,
       device: data.stats.device ? ` ${t("deviceLabel", { device: data.stats.device })}` : "",
     }));
   } catch (error) {
     setStatus(error.message, true);
   } finally {
+    stopMaskBusy();
     maskButton.disabled = false;
   }
 }
@@ -583,6 +591,29 @@ function stopPreviewBusy() {
   clearPreviewTimer();
 }
 
+function startMaskBusy(startedAt) {
+  clearMaskTimer();
+  const tick = () => {
+    const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+    maskButton.textContent = t("maskRunning", { seconds });
+    setStatus(`${t("generatingMask")} ${t("elapsed", { seconds })}`);
+  };
+  tick();
+  state.maskTimer = window.setInterval(tick, 1000);
+}
+
+function stopMaskBusy() {
+  clearMaskTimer();
+  maskButton.textContent = t("generateMask");
+}
+
+function clearMaskTimer() {
+  if (state.maskTimer) {
+    window.clearInterval(state.maskTimer);
+    state.maskTimer = null;
+  }
+}
+
 function clearPreviewTimer() {
   if (state.previewTimer) {
     window.clearInterval(state.previewTimer);
@@ -647,6 +678,9 @@ function applyLanguage(lang) {
   }
   zhButton.classList.toggle("active", lang === "zh");
   enButton.classList.toggle("active", lang === "en");
+  if (!state.maskTimer) {
+    maskButton.textContent = t("generateMask");
+  }
   updateInpaintButtonText();
 }
 
