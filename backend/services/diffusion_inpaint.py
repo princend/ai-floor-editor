@@ -22,6 +22,7 @@ def create_diffusion_inpaint(
     mask_path: Path,
     output_path: Path,
     prompt: str,
+    material_key: str,
     negative_prompt: str,
     strength: float,
     steps: int,
@@ -34,7 +35,7 @@ def create_diffusion_inpaint(
     work_size = _work_size(original.size)
     work_image = original.resize(work_size, Image.Resampling.LANCZOS)
     work_mask = mask.resize(work_size, Image.Resampling.NEAREST)
-    material = _material_profile(prompt)
+    material = _material_profile(prompt, material_key)
     final_prompt = _floor_replacement_prompt(material)
     final_negative_prompt = _negative_prompt(negative_prompt, material)
 
@@ -155,37 +156,46 @@ def _negative_prompt(negative_prompt: str, material: dict[str, str]) -> str:
     return combined
 
 
-def _material_profile(prompt: str) -> dict[str, str]:
+MATERIAL_PROFILES = {
+    "oak": {
+        "name": "natural oak hardwood",
+        "positive": (
+            "natural oak hardwood planks, honey oak color, visible wood grain, "
+            "parallel plank seams, matte satin finish"
+        ),
+        "negative": "marble, stone, tile, concrete, terrazzo, ceramic, gray slab, veining, glossy stone",
+    },
+    "walnut": {
+        "name": "dark walnut hardwood",
+        "positive": "dark walnut hardwood planks, rich brown wood grain, parallel plank seams, matte satin finish",
+        "negative": "marble, stone, tile, concrete, terrazzo, ceramic, gray slab, veining, glossy stone",
+    },
+    "tile": {
+        "name": "warm stone tile",
+        "positive": "warm stone tile floor, clean tile grid, subtle grout lines, matte natural stone surface",
+        "negative": "wood planks, oak, walnut, carpet",
+    },
+    "concrete": {
+        "name": "matte gray concrete",
+        "positive": "matte gray concrete floor, smooth microcement surface, minimal texture, modern interior",
+        "negative": "wood planks, oak, walnut, marble veining, glossy tile",
+    },
+}
+
+
+def _material_profile(prompt: str, material_key: str = "") -> dict[str, str]:
+    if material_key in MATERIAL_PROFILES:
+        return MATERIAL_PROFILES[material_key]
+
     text = prompt.lower()
     if "oak" in text or "橡木" in text or "實木" in text:
-        return {
-            "name": "natural oak hardwood",
-            "positive": (
-                "natural oak hardwood planks, honey oak color, visible wood grain, "
-                "parallel plank seams, matte satin finish"
-            ),
-            "negative": "marble, stone, tile, concrete, terrazzo, ceramic, gray slab, veining, glossy stone",
-        }
+        return MATERIAL_PROFILES["oak"]
     if "walnut" in text or "胡桃" in text:
-        return {
-            "name": "dark walnut hardwood",
-            "positive": (
-                "dark walnut hardwood planks, rich brown wood grain, parallel plank seams, matte satin finish"
-            ),
-            "negative": "marble, stone, tile, concrete, terrazzo, ceramic, gray slab, veining, glossy stone",
-        }
+        return MATERIAL_PROFILES["walnut"]
     if "tile" in text or "stone" in text or "磁磚" in text or "石材" in text:
-        return {
-            "name": "warm stone tile",
-            "positive": "warm stone tile floor, clean tile grid, subtle grout lines, matte natural stone surface",
-            "negative": "wood planks, oak, walnut, carpet",
-        }
+        return MATERIAL_PROFILES["tile"]
     if "concrete" in text or "gray" in text or "grey" in text or "水泥" in text or "灰色" in text:
-        return {
-            "name": "matte gray concrete",
-            "positive": "matte gray concrete floor, smooth microcement surface, minimal texture, modern interior",
-            "negative": "wood planks, oak, walnut, marble veining, glossy tile",
-        }
+        return MATERIAL_PROFILES["concrete"]
     return {
         "name": "generic flooring",
         "positive": "clean realistic floor material, seamless floor surface",

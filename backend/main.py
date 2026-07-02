@@ -74,6 +74,7 @@ class InpaintRequest(BaseModel):
     engine: str = Field("procedural", pattern="^(procedural|diffusion|texture)$")
     steps: int = Field(16, ge=1, le=50)
     guidance_scale: float = Field(6.5, ge=0.0, le=20.0)
+    material_key: str = Field("oak", pattern="^(oak|walnut|tile|concrete)$")
     material_id: Optional[str] = None
     texture_scale: float = Field(1.6, ge=0.35, le=3.0)
 
@@ -207,6 +208,7 @@ def generate_floor_preview(image_id: str, payload: InpaintRequest) -> dict:
                 mask_path=mask_path,
                 output_path=output_path,
                 prompt=payload.prompt,
+                material_key=payload.material_key,
                 negative_prompt=payload.negative_prompt,
                 strength=payload.strength,
                 steps=payload.steps,

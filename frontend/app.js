@@ -67,7 +67,8 @@ const translations = {
     walnut: "胡桃木",
     tile: "磁磚",
     concrete: "水泥",
-    prompt: "Prompt",
+    prompt: "補充描述",
+    promptPlaceholder: "例如：顏色偏暖、木紋更明顯。主要材質由上方按鈕決定。",
     strength: "替換強度",
     aiSteps: "AI 步數",
     promptGuidance: "Prompt 權重",
@@ -141,7 +142,8 @@ const translations = {
     walnut: "Walnut",
     tile: "Tile",
     concrete: "Concrete",
-    prompt: "Prompt",
+    prompt: "Extra notes",
+    promptPlaceholder: "Example: warmer color, more visible grain. The selected material controls the main result.",
     strength: "Strength",
     aiSteps: "AI steps",
     promptGuidance: "Prompt guidance",
@@ -203,6 +205,7 @@ const state = {
   engine: "procedural",
   lang: "zh",
   materialMeta: null,
+  materialKey: "oak",
   previewTimer: null,
   maskTimer: null,
 };
@@ -321,7 +324,7 @@ materialGrid.addEventListener("click", (event) => {
   const button = event.target.closest(".material-button");
   if (!button) return;
 
-  promptInput.value = button.dataset.prompt;
+  state.materialKey = button.dataset.materialKey || "oak";
   for (const materialButton of materialGrid.querySelectorAll(".material-button")) {
     materialButton.classList.toggle("active", materialButton === button);
   }
@@ -388,6 +391,7 @@ inpaintButton.addEventListener("click", async () => {
       body: JSON.stringify({
         engine: state.engine,
         prompt: promptInput.value,
+        material_key: state.materialKey,
         negative_prompt: DEFAULT_NEGATIVE_PROMPT,
         strength: Number(strengthInput.value),
         steps: Number(stepsInput.value),
@@ -675,6 +679,9 @@ function applyLanguage(lang) {
   document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
   for (const element of document.querySelectorAll("[data-i18n]")) {
     element.textContent = t(element.dataset.i18n);
+  }
+  for (const element of document.querySelectorAll("[data-i18n-placeholder]")) {
+    element.placeholder = t(element.dataset.i18nPlaceholder);
   }
   zhButton.classList.toggle("active", lang === "zh");
   enButton.classList.toggle("active", lang === "en");

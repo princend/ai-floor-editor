@@ -76,25 +76,25 @@
           </div>
           <label data-i18n="material">材質</label>
           <div class="material-grid" id="materialGrid">
-            <button class="material-button active" type="button" data-prompt="replace the floor with natural oak hardwood plank flooring, warm honey oak, visible wood grain, parallel planks, matte satin finish">
+            <button class="material-button active" type="button" data-material-key="oak">
               <span class="swatch oak"></span>
               <span data-i18n="oak">橡木</span>
             </button>
-            <button class="material-button" type="button" data-prompt="replace the floor with dark walnut hardwood plank flooring, rich brown wood grain, parallel planks, matte satin finish">
+            <button class="material-button" type="button" data-material-key="walnut">
               <span class="swatch walnut"></span>
               <span data-i18n="walnut">胡桃木</span>
             </button>
-            <button class="material-button" type="button" data-prompt="replace the floor with warm stone tile">
+            <button class="material-button" type="button" data-material-key="tile">
               <span class="swatch tile"></span>
               <span data-i18n="tile">磁磚</span>
             </button>
-            <button class="material-button" type="button" data-prompt="replace the floor with matte gray concrete flooring">
+            <button class="material-button" type="button" data-material-key="concrete">
               <span class="swatch concrete"></span>
               <span data-i18n="concrete">水泥</span>
             </button>
           </div>
-          <label for="promptInput" data-i18n="prompt">Prompt</label>
-          <textarea id="promptInput" rows="5">replace the floor with natural oak hardwood plank flooring, warm honey oak, visible wood grain, parallel planks, matte satin finish</textarea>
+          <label for="promptInput" data-i18n="prompt">補充描述</label>
+          <textarea id="promptInput" rows="5" data-i18n-placeholder="promptPlaceholder" placeholder="例如：顏色偏暖、木紋更明顯。"></textarea>
           <div class="slider-row">
             <label for="strengthInput" data-i18n="strength">替換強度</label>
             <output id="strengthValue" for="strengthInput">0.75</output>
