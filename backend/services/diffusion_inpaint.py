@@ -35,7 +35,7 @@ def create_diffusion_inpaint(
     work_image = original.resize(work_size, Image.Resampling.LANCZOS)
     work_mask = mask.resize(work_size, Image.Resampling.NEAREST)
     material = _material_profile(prompt)
-    final_prompt = _floor_replacement_prompt(prompt, material)
+    final_prompt = _floor_replacement_prompt(material)
     final_negative_prompt = _negative_prompt(negative_prompt, material)
 
     try:
@@ -136,12 +136,11 @@ def _looks_invalid(image: Image.Image) -> bool:
     return float(array.mean()) < 2.0 and float(array.std()) < 2.0
 
 
-def _floor_replacement_prompt(prompt: str, material: dict[str, str]) -> str:
+def _floor_replacement_prompt(material: dict[str, str]) -> str:
     return (
-        "photorealistic interior design photo, replace only the floor surface, "
-        "realistic room perspective, preserve furniture, preserve walls, preserve windows, "
-        "preserve lighting, preserve shadows, "
-        f"{material['positive']}, {prompt}"
+        "photorealistic interior, replace only floor, preserve furniture and walls, "
+        "realistic perspective, natural lighting, "
+        f"{material['positive']}"
     )
 
 
@@ -158,31 +157,30 @@ def _negative_prompt(negative_prompt: str, material: dict[str, str]) -> str:
 
 def _material_profile(prompt: str) -> dict[str, str]:
     text = prompt.lower()
-    if "oak" in text:
+    if "oak" in text or "橡木" in text or "實木" in text:
         return {
             "name": "natural oak hardwood",
             "positive": (
-                "natural oak hardwood plank floor, warm honey oak color, visible linear wood grain, "
-                "parallel wood planks, subtle plank seams, matte satin finish, not glossy"
+                "natural oak hardwood planks, honey oak color, visible wood grain, "
+                "parallel plank seams, matte satin finish"
             ),
             "negative": "marble, stone, tile, concrete, terrazzo, ceramic, gray slab, veining, glossy stone",
         }
-    if "walnut" in text:
+    if "walnut" in text or "胡桃" in text:
         return {
             "name": "dark walnut hardwood",
             "positive": (
-                "dark walnut hardwood plank floor, rich brown wood grain, parallel wood planks, "
-                "subtle plank seams, matte satin finish"
+                "dark walnut hardwood planks, rich brown wood grain, parallel plank seams, matte satin finish"
             ),
             "negative": "marble, stone, tile, concrete, terrazzo, ceramic, gray slab, veining, glossy stone",
         }
-    if "tile" in text or "stone" in text:
+    if "tile" in text or "stone" in text or "磁磚" in text or "石材" in text:
         return {
             "name": "warm stone tile",
             "positive": "warm stone tile floor, clean tile grid, subtle grout lines, matte natural stone surface",
             "negative": "wood planks, oak, walnut, carpet",
         }
-    if "concrete" in text or "gray" in text or "grey" in text:
+    if "concrete" in text or "gray" in text or "grey" in text or "水泥" in text or "灰色" in text:
         return {
             "name": "matte gray concrete",
             "positive": "matte gray concrete floor, smooth microcement surface, minimal texture, modern interior",
