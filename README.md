@@ -2,7 +2,7 @@
 
 Local proof of concept for click-based floor masking and AI floor replacement.
 
-The current version uses SAM2.1 small through Hugging Face Transformers when the model can be loaded locally. If SAM2 is unavailable, it falls back to a lightweight click-based mask algorithm so the app still works.
+The current version uses SAM2.1 base-plus through Hugging Face Transformers when the model can be loaded locally. If SAM2 is unavailable, it falls back to a lightweight click-based mask algorithm so the app still works.
 
 Floor replacement has two engines:
 
@@ -13,7 +13,7 @@ Floor replacement has two engines:
 ## Requirements
 
 - macOS with Python 3.12+
-- Apple Silicon is supported. This prototype uses SAM2.1 small on the best available PyTorch device and falls back to CPU when MPS is unavailable.
+- Apple Silicon is supported. This prototype uses SAM2.1 base-plus on the best available PyTorch device and falls back to CPU when MPS is unavailable.
 
 ## Setup
 
@@ -41,7 +41,7 @@ http://127.0.0.1:8000
 1. Upload an interior photo.
 2. Click one or more include points on the floor.
 3. Optionally switch to exclude mode and click furniture or objects that should be removed from the mask.
-4. The backend generates a point-prompt mask with SAM2.1 small.
+4. The backend generates a point-prompt mask with SAM2.1 base-plus.
 5. Choose Fast preview, Texture match, or AI inpaint and generate a replacement floor.
 
 ## API
@@ -56,6 +56,6 @@ http://127.0.0.1:8000
 
 ## Planned Model Path
 
-- Try SAM2.1 base-plus if small is still not accurate enough and local performance is acceptable.
+- Try SAM2.1 large only if base-plus is still not accurate enough and local performance is acceptable.
 - Improve diffusion prompts and floor-only consistency.
 - Keep local generation around 512-768 px for early testing on a 16GB Apple Silicon MacBook Air.

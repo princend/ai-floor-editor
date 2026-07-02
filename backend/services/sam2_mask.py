@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 
-MODEL_ID = "facebook/sam2.1-hiera-small"
+MODEL_ID = "facebook/sam2.1-hiera-base-plus"
 
 
 class Sam2UnavailableError(RuntimeError):
@@ -59,7 +59,7 @@ def create_sam2_mask(
     raw_pixels = int(raw_mask.sum())
     total_pixels = image.width * image.height
     return {
-        "algorithm": "sam2.1_hiera_small_transformers",
+        "algorithm": "sam2.1_hiera_base_plus_transformers",
         "model": MODEL_ID,
         "device": str(device),
         "width": image.width,
