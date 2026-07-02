@@ -47,7 +47,7 @@ def create_sam2_mask(
             outputs = model(**inputs)
 
         masks = processor.post_process_masks(outputs.pred_masks.cpu(), inputs["original_sizes"])[0]
-        raw_mask = _pick_best_mask(masks, outputs)
+        raw_mask = _pick_best_floor_mask(masks, outputs, positive_points)
         mask = _postprocess_floor_mask(raw_mask, positive_points, points)
     except Exception as exc:
         raise Sam2UnavailableError(f"SAM2 inference failed: {exc}") from exc
@@ -71,7 +71,7 @@ def create_sam2_mask(
         "negative_point_count": len(points) - len(positive_points),
         "mask_coverage": round(selected_pixels / total_pixels, 4),
         "raw_mask_coverage": round(raw_pixels / total_pixels, 4),
-        "postprocess": "connected_component_floor_prior",
+        "postprocess": "connected_component_soft_floor_cleanup",
     }
 
 
@@ -92,15 +92,47 @@ def _best_device(torch_module):
     return torch_module.device("cpu")
 
 
-def _pick_best_mask(masks, outputs) -> np.ndarray:
+def _pick_best_floor_mask(masks, outputs, positive_points: list[tuple[int, int]]) -> np.ndarray:
+    candidates = masks.reshape(-1, masks.shape[-2], masks.shape[-1])
     if hasattr(outputs, "iou_scores") and outputs.iou_scores is not None:
-        scores = outputs.iou_scores.detach().cpu().reshape(-1)
-        index = int(scores.argmax().item())
+        iou_scores = outputs.iou_scores.detach().cpu().reshape(-1).numpy()
     else:
-        index = 0
+        iou_scores = np.ones((candidates.shape[0],), dtype=np.float32)
 
-    mask_tensor = masks.reshape(-1, masks.shape[-2], masks.shape[-1])[index]
-    return mask_tensor.detach().cpu().numpy() > 0
+    best_score = -1e9
+    best_mask = candidates[0].detach().cpu().numpy() > 0
+    for index, candidate in enumerate(candidates):
+        mask = candidate.detach().cpu().numpy() > 0
+        score = _floor_candidate_score(mask, positive_points, float(iou_scores[min(index, len(iou_scores) - 1)]))
+        if score > best_score:
+            best_score = score
+            best_mask = mask
+    return best_mask
+
+
+def _floor_candidate_score(mask: np.ndarray, positive_points: list[tuple[int, int]], iou_score: float) -> float:
+    height, width = mask.shape
+    coverage = float(mask.mean())
+    if coverage <= 0:
+        return -1e9
+
+    positive_hit = 0.0
+    for x, y in positive_points:
+        x = int(np.clip(x, 0, width - 1))
+        y = int(np.clip(y, 0, height - 1))
+        if mask[y, x] or _nearest_mask_pixel(mask, x, y, radius=max(8, min(width, height) // 45)):
+            positive_hit += 1.0
+    positive_hit /= max(1, len(positive_points))
+
+    ys = np.flatnonzero(mask.any(axis=1))
+    top = int(ys[0]) if ys.size else height
+    bottom = int(ys[-1]) if ys.size else 0
+    first_y = int(np.clip(positive_points[0][1], 0, height - 1))
+    top_penalty = max(0.0, (first_y - top) / max(1, height) - 0.45)
+    bottom_reward = bottom / max(1, height - 1)
+    coverage_penalty = max(0.0, coverage - 0.58) * 2.4 + max(0.0, 0.01 - coverage) * 10.0
+
+    return iou_score * 0.35 + positive_hit * 1.4 + bottom_reward * 0.25 - top_penalty * 1.2 - coverage_penalty
 
 
 def _postprocess_floor_mask(
@@ -113,37 +145,16 @@ def _postprocess_floor_mask(
     sx = int(np.clip(sx, 0, width - 1))
     sy = int(np.clip(sy, 0, height - 1))
 
-    floor_prior = _floor_prior(width, height, sx, sy)
-    cleaned = mask & floor_prior
-    cleaned = _remove_negative_point_regions(cleaned, points)
+    cleaned = _remove_negative_point_regions(mask, points)
     cleaned = _keep_component_near_positive_points(cleaned, positive_points)
     cleaned = _remove_upper_protrusions(cleaned, sy)
-    cleaned = _limit_coverage(cleaned, sx, sy, max_coverage=0.48)
+    cleaned = _smooth_column_outliers(cleaned, sy)
+    cleaned = _soft_limit_coverage(cleaned, max_coverage=0.6)
 
     if cleaned.sum() < max(128, mask.sum() * 0.03):
-        cleaned = mask & _strict_lower_prior(width, height, sx, sy)
-        cleaned = _keep_component_near_positive_points(cleaned, positive_points)
+        cleaned = _keep_component_near_positive_points(mask, positive_points)
 
     return cleaned
-
-
-def _floor_prior(width: int, height: int, sx: int, sy: int) -> np.ndarray:
-    y_grid, x_grid = np.indices((height, width))
-    normalized_y = y_grid / max(1, height - 1)
-    distance_from_click_x = np.abs(x_grid - sx) / max(1, width)
-
-    floor_start = max(height * 0.38, sy - height * 0.24)
-    widening_allowance = np.clip((normalized_y - 0.34) * 1.85, 0.0, 1.0)
-    trapezoid = distance_from_click_x <= 0.2 + widening_allowance * 0.62
-    below_click_bias = y_grid >= max(0, sy - int(height * 0.22))
-    return (y_grid >= floor_start) & trapezoid & below_click_bias
-
-
-def _strict_lower_prior(width: int, height: int, sx: int, sy: int) -> np.ndarray:
-    y_grid, x_grid = np.indices((height, width))
-    distance_from_click_x = np.abs(x_grid - sx) / max(1, width)
-    widening = np.clip((y_grid / max(1, height - 1) - 0.46) * 2.0, 0.0, 1.0)
-    return (y_grid >= max(height * 0.48, sy - height * 0.16)) & (distance_from_click_x <= 0.24 + widening * 0.56)
 
 
 def _remove_negative_point_regions(mask: np.ndarray, points: list[tuple[int, int, int]]) -> np.ndarray:
@@ -239,19 +250,59 @@ def _remove_upper_protrusions(mask: np.ndarray, sy: int) -> np.ndarray:
     return cleaned
 
 
-def _limit_coverage(mask: np.ndarray, sx: int, sy: int, max_coverage: float) -> np.ndarray:
+def _smooth_column_outliers(mask: np.ndarray, sy: int) -> np.ndarray:
+    height, width = mask.shape
+    tops = np.full(width, -1, dtype=np.int32)
+    bottoms = np.full(width, -1, dtype=np.int32)
+    for x in range(width):
+        rows = np.flatnonzero(mask[:, x])
+        if rows.size:
+            tops[x] = int(rows[0])
+            bottoms[x] = int(rows[-1])
+
+    valid = tops >= 0
+    if valid.sum() < max(8, width // 30):
+        return mask
+
+    cleaned = mask.copy()
+    window = max(21, (width // 18) | 1)
+    half = window // 2
+    max_upward_spike = max(28, height // 7)
+
+    for x in range(width):
+        if tops[x] < 0:
+            continue
+        left = max(0, x - half)
+        right = min(width, x + half + 1)
+        local_tops = tops[left:right]
+        local_tops = local_tops[local_tops >= 0]
+        if local_tops.size < 4:
+            continue
+        local_reference = int(np.percentile(local_tops, 35))
+        if tops[x] < local_reference - max_upward_spike and tops[x] < sy:
+            cleaned[: max(0, local_reference - height // 40), x] = False
+
+    return cleaned
+
+
+def _soft_limit_coverage(mask: np.ndarray, max_coverage: float) -> np.ndarray:
     coverage = float(mask.mean())
     if coverage <= max_coverage:
         return mask
 
     height, width = mask.shape
-    y_grid, x_grid = np.indices((height, width))
-    normalized_y = y_grid / max(1, height - 1)
-    distance_from_click_x = np.abs(x_grid - sx) / max(1, width)
-    stricter = (y_grid >= max(height * 0.48, sy - height * 0.14)) & (
-        distance_from_click_x <= 0.18 + np.clip((normalized_y - 0.48) * 1.6, 0.0, 1.0) * 0.55
-    )
-    return mask & stricter
+    rows = np.flatnonzero(mask.any(axis=1))
+    if rows.size == 0:
+        return mask
+
+    top_by_row = rows[0]
+    target_pixels = int(width * height * max_coverage)
+    cleaned = mask.copy()
+    for y in range(top_by_row, height):
+        if int(cleaned.sum()) <= target_pixels:
+            break
+        cleaned[y, :] = False
+    return cleaned
 
 
 def _make_overlay(image: Image.Image, mask: Image.Image) -> Image.Image:
