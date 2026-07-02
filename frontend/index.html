@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Floor Editor MVP</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <div class="toolbar">
+          <div>
+            <h1 data-i18n="appTitle">AI 地板更換 MVP</h1>
+            <p data-i18n="appSubtitle">上傳室內照片、點選地板，預覽新的地板材質。</p>
+          </div>
+          <div class="toolbar-actions">
+            <div class="language-toggle" role="group" aria-label="Language">
+              <button id="zhButton" class="view-button active" type="button">中文</button>
+              <button id="enButton" class="view-button" type="button">English</button>
+            </div>
+            <label class="upload-button">
+              <input id="fileInput" type="file" accept="image/*" />
+              <span data-i18n="uploadImage">上傳圖片</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="view-bar" role="group" aria-label="View mode">
+          <button id="originalViewButton" class="view-button active" type="button" disabled data-i18n="viewOriginal">原圖</button>
+          <button id="maskViewButton" class="view-button" type="button" disabled data-i18n="viewMask">Mask</button>
+          <button id="previewViewButton" class="view-button" type="button" disabled data-i18n="viewPreview">預覽</button>
+          <button id="downloadButton" type="button" disabled data-i18n="download">下載</button>
+        </div>
+
+        <div class="viewer" id="viewer">
+          <canvas id="imageCanvas"></canvas>
+          <div class="empty-state" id="emptyState" data-i18n="emptyState">上傳室內照片開始。</div>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <div class="panel-section">
+          <h2 data-i18n="maskTitle">地板 Mask</h2>
+          <div class="status" id="status" data-i18n="noImage">尚未載入圖片。</div>
+          <div class="point-mode" role="group" aria-label="Point mode">
+            <button id="includeModeButton" class="mode-button active" type="button" data-i18n="includeFloor">包含地板</button>
+            <button id="excludeModeButton" class="mode-button" type="button" data-i18n="excludeObject">排除物件</button>
+          </div>
+          <button id="maskButton" disabled data-i18n="generateMask">由點位產生 Mask</button>
+          <button id="undoPointButton" disabled data-i18n="undoPoint">復原上一點</button>
+          <button id="clearPointsButton" disabled data-i18n="clearPoints">清除點位</button>
+        </div>
+
+        <div class="panel-section">
+          <h2 data-i18n="floorPreviewTitle">地板預覽</h2>
+          <label data-i18n="engine">生成方式</label>
+          <div class="engine-mode" role="group" aria-label="Inpainting engine">
+            <button id="proceduralEngineButton" class="mode-button active" type="button" data-i18n="fastPreview">快速預覽</button>
+            <button id="textureEngineButton" class="mode-button" type="button" data-i18n="textureMatch">材質貼圖</button>
+            <button id="diffusionEngineButton" class="mode-button" type="button" data-i18n="aiInpaint">AI 重繪</button>
+          </div>
+          <div class="texture-controls" id="textureControls" hidden>
+            <label class="texture-upload">
+              <input id="textureInput" type="file" accept="image/*" />
+              <span data-i18n="uploadTexture">上傳材質圖</span>
+            </label>
+            <div class="texture-preview" id="texturePreview">
+              <span data-i18n="noTexture">尚未載入材質圖。</span>
+            </div>
+            <div class="slider-row">
+              <label for="textureScaleInput" data-i18n="textureScale">材質比例</label>
+              <output id="textureScaleValue" for="textureScaleInput">1.6</output>
+            </div>
+            <input id="textureScaleInput" type="range" min="0.35" max="3" step="0.05" value="1.6" />
+          </div>
+          <label data-i18n="material">材質</label>
+          <div class="material-grid" id="materialGrid">
+            <button class="material-button active" type="button" data-prompt="replace the floor with natural oak hardwood plank flooring, warm honey oak, visible wood grain, parallel planks, matte satin finish">
+              <span class="swatch oak"></span>
+              <span data-i18n="oak">橡木</span>
+            </button>
+            <button class="material-button" type="button" data-prompt="replace the floor with dark walnut hardwood plank flooring, rich brown wood grain, parallel planks, matte satin finish">
+              <span class="swatch walnut"></span>
+              <span data-i18n="walnut">胡桃木</span>
+            </button>
+            <button class="material-button" type="button" data-prompt="replace the floor with warm stone tile">
+              <span class="swatch tile"></span>
+              <span data-i18n="tile">磁磚</span>
+            </button>
+            <button class="material-button" type="button" data-prompt="replace the floor with matte gray concrete flooring">
+              <span class="swatch concrete"></span>
+              <span data-i18n="concrete">水泥</span>
+            </button>
+          </div>
+          <label for="promptInput" data-i18n="prompt">Prompt</label>
+          <textarea id="promptInput" rows="5">replace the floor with natural oak hardwood plank flooring, warm honey oak, visible wood grain, parallel planks, matte satin finish</textarea>
+          <div class="slider-row">
+            <label for="strengthInput" data-i18n="strength">替換強度</label>
+            <output id="strengthValue" for="strengthInput">0.75</output>
+          </div>
+          <input id="strengthInput" type="range" min="0.35" max="1" step="0.05" value="0.75" />
+          <div class="advanced-controls" id="diffusionControls" hidden>
+            <div class="slider-row">
+              <label for="stepsInput" data-i18n="aiSteps">AI 步數</label>
+              <output id="stepsValue" for="stepsInput">16</output>
+            </div>
+            <input id="stepsInput" type="range" min="8" max="30" step="1" value="16" />
+            <div class="slider-row">
+              <label for="guidanceInput" data-i18n="promptGuidance">Prompt 權重</label>
+              <output id="guidanceValue" for="guidanceInput">6.5</output>
+            </div>
+            <input id="guidanceInput" type="range" min="2" max="12" step="0.5" value="6.5" />
+          </div>
+          <button id="inpaintButton" disabled data-i18n="generateFloorPreview">產生地板預覽</button>
+          <div class="preview-status" id="previewStatus" data-i18n="ready">就緒。</div>
+          <pre id="apiResult"></pre>
+        </div>
+      </aside>
+    </main>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
