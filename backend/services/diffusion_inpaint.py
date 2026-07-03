@@ -20,7 +20,7 @@ MODEL_CONFIGS = {
     "sdxl": {
         "model_id": "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
         "pipeline": "StableDiffusionXLInpaintPipeline",
-        "max_side": 768,
+        "max_side": 640,
         "algorithm": "stable_diffusion_xl_inpainting_diffusers",
     },
 }
@@ -148,10 +148,9 @@ def _model_config() -> dict[str, str | int]:
 def _pipeline_dtype(pipeline_name: str, device: str) -> torch.dtype:
     if device == "cuda":
         return torch.float16
-    if device == "mps" and pipeline_name == "StableDiffusionXLInpaintPipeline":
-        return torch.float16
-    # MPS float16 can produce NaNs with the SD1.5 inpainting pipeline on Apple
-    # Silicon, which turns the final PIL image black. Keep SD1.5 on float32.
+    # MPS float16 is unstable with these inpainting pipelines on Apple Silicon:
+    # SD1.5 can return black images, while SDXL can hit non-contiguous tensor
+    # view errors in PyTorch/Diffusers internals. Prefer correctness for the MVP.
     return torch.float32
 
 

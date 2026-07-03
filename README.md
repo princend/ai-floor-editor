@@ -67,4 +67,4 @@ FLOOR_DIFFUSION_MODEL=sd15 uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 - Try SAM2.1 large only if base-plus is still not accurate enough and local performance is acceptable.
 - Improve reference-texture guidance and floor-only consistency.
-- Keep local generation around 512-768 px for early testing on a 16GB Apple Silicon MacBook Air.
+- Keep local generation around 512-640 px for early testing on a 16GB Apple Silicon MacBook Air.
