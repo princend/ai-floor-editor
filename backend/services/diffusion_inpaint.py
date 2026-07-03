@@ -166,10 +166,18 @@ def _pipeline_dtype(pipeline_name: str, device: str) -> torch.dtype:
 
 
 def _best_device() -> str:
-    if torch.backends.mps.is_available():
+    requested = os.getenv("FLOOR_DIFFUSION_DEVICE", "cpu").lower()
+    if requested == "cpu":
+        return "cpu"
+    if requested == "mps" and torch.backends.mps.is_available():
         return "mps"
-    if torch.cuda.is_available():
+    if requested == "cuda" and torch.cuda.is_available():
         return "cuda"
+    if requested == "auto":
+        if torch.backends.mps.is_available():
+            return "mps"
+        if torch.cuda.is_available():
+            return "cuda"
     return "cpu"
 
 

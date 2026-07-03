@@ -45,6 +45,12 @@ FLOOR_DIFFUSION_MODEL=sd15 uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 `sd15` uses `runwayml/stable-diffusion-inpainting` and is the default low-load mode. `sdxl` uses `diffusers/stable-diffusion-xl-1.0-inpainting-0.1` for slower, heavier experiments.
 
+AI inpaint uses CPU by default to avoid Apple MPS UI freezes and PyTorch/Diffusers MPS tensor errors. You can opt into MPS manually:
+
+```bash
+FLOOR_DIFFUSION_DEVICE=mps uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
 ## Smoke Test
 
 Run the local API smoke test without opening the browser:
