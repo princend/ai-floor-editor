@@ -8,7 +8,7 @@ Floor replacement has two engines:
 
 - Fast preview: procedural local material rendering for quick iteration.
 - Texture match: uploads a flooring texture image and composites it into the floor mask while preserving source lighting.
-- AI inpaint: SDXL inpainting through Diffusers by default. The model is lazy-loaded only when this engine is used, and the first run may download several GB from Hugging Face.
+- AI inpaint: Stable Diffusion 1.5 inpainting through Diffusers by default to reduce local load. SDXL can be enabled manually for slower experiments.
 
 ## Requirements
 
@@ -43,7 +43,7 @@ FLOOR_DIFFUSION_MODEL=sdxl uvicorn backend.main:app --host 127.0.0.1 --port 8000
 FLOOR_DIFFUSION_MODEL=sd15 uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-`sdxl` uses `diffusers/stable-diffusion-xl-1.0-inpainting-0.1` and is the default. `sd15` uses the older `runwayml/stable-diffusion-inpainting` fallback.
+`sd15` uses `runwayml/stable-diffusion-inpainting` and is the default low-load mode. `sdxl` uses `diffusers/stable-diffusion-xl-1.0-inpainting-0.1` for slower, heavier experiments.
 
 ## Smoke Test
 

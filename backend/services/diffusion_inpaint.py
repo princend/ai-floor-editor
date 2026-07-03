@@ -9,12 +9,12 @@ import torch
 from PIL import Image
 
 
-DEFAULT_MODEL_FAMILY = "sdxl"
+DEFAULT_MODEL_FAMILY = "sd15"
 MODEL_CONFIGS = {
     "sd15": {
         "model_id": "runwayml/stable-diffusion-inpainting",
         "pipeline": "StableDiffusionInpaintPipeline",
-        "max_side": 512,
+        "max_side": 384,
         "algorithm": "stable_diffusion_1_5_inpainting_diffusers",
     },
     "sdxl": {
@@ -74,6 +74,7 @@ def create_diffusion_inpaint(
     if result.size != original.size:
         result = result.resize(original.size, Image.Resampling.LANCZOS)
     result.save(output_path)
+    _release_pipeline_if_needed()
 
     mask_pixels = int((np.asarray(mask) > 8).sum())
     return {
@@ -131,6 +132,16 @@ def _load_pipeline():
     if hasattr(pipe, "enable_vae_tiling"):
         pipe.enable_vae_tiling()
     return pipe, device, str(dtype).replace("torch.", ""), config
+
+
+def _release_pipeline_if_needed() -> None:
+    if os.getenv("FLOOR_KEEP_DIFFUSION_LOADED", "0") == "1":
+        return
+    _load_pipeline.cache_clear()
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def _model_family() -> str:
