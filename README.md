@@ -45,6 +45,23 @@ FLOOR_DIFFUSION_MODEL=sd15 uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
 `sdxl` uses `diffusers/stable-diffusion-xl-1.0-inpainting-0.1` and is the default. `sd15` uses the older `runwayml/stable-diffusion-inpainting` fallback.
 
+## Smoke Test
+
+Run the local API smoke test without opening the browser:
+
+```bash
+python scripts/smoke_test.py
+```
+
+The default smoke test creates a synthetic room image, uploads it, generates a fallback mask, creates a fast preview, uploads a texture, and creates a texture preview. It skips SAM2 and SDXL so it stays quick and does not download models.
+
+Optional slower checks:
+
+```bash
+python scripts/smoke_test.py --use-sam2
+python scripts/smoke_test.py --include-ai
+```
+
 ## Current MVP Flow
 
 1. Upload an interior photo.
