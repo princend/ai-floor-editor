@@ -9,8 +9,21 @@ import torch
 from PIL import Image
 
 
-MODEL_ID = "runwayml/stable-diffusion-inpainting"
-MAX_SIDE = 512
+DEFAULT_MODEL_FAMILY = "sdxl"
+MODEL_CONFIGS = {
+    "sd15": {
+        "model_id": "runwayml/stable-diffusion-inpainting",
+        "pipeline": "StableDiffusionInpaintPipeline",
+        "max_side": 512,
+        "algorithm": "stable_diffusion_1_5_inpainting_diffusers",
+    },
+    "sdxl": {
+        "model_id": "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
+        "pipeline": "StableDiffusionXLInpaintPipeline",
+        "max_side": 768,
+        "algorithm": "stable_diffusion_xl_inpainting_diffusers",
+    },
+}
 
 
 class DiffusionUnavailableError(RuntimeError):
@@ -28,11 +41,11 @@ def create_diffusion_inpaint(
     steps: int,
     guidance_scale: float,
 ) -> dict:
-    pipe, device, dtype_name = _load_pipeline()
+    pipe, device, dtype_name, config = _load_pipeline()
 
     original = Image.open(image_path).convert("RGB")
     mask = Image.open(mask_path).convert("L")
-    work_size = _work_size(original.size)
+    work_size = _work_size(original.size, config["max_side"])
     work_image = original.resize(work_size, Image.Resampling.LANCZOS)
     work_mask = mask.resize(work_size, Image.Resampling.NEAREST)
     material = _material_profile(prompt, material_key)
@@ -64,8 +77,9 @@ def create_diffusion_inpaint(
 
     mask_pixels = int((np.asarray(mask) > 8).sum())
     return {
-        "algorithm": "stable_diffusion_inpainting_diffusers",
-        "model": MODEL_ID,
+        "algorithm": config["algorithm"],
+        "model": config["model_id"],
+        "model_family": _model_family(),
         "device": device,
         "dtype": dtype_name,
         "work_size": {"width": work_size[0], "height": work_size[1]},
@@ -81,35 +95,64 @@ def create_diffusion_inpaint(
 
 @lru_cache(maxsize=1)
 def _load_pipeline():
+    config = _model_config()
     try:
-        from diffusers import StableDiffusionInpaintPipeline
+        from diffusers import StableDiffusionInpaintPipeline, StableDiffusionXLInpaintPipeline
     except Exception as exc:
         raise DiffusionUnavailableError(
             "Diffusers is not installed. Run `python -m pip install diffusers accelerate`."
         ) from exc
 
     device = _best_device()
-    # MPS float16 can produce NaNs with this inpainting pipeline on Apple Silicon,
-    # which turns the final PIL image black. Keep MPS on float32 for correctness.
-    dtype = torch.float16 if device == "cuda" else torch.float32
+    dtype = _pipeline_dtype(config["pipeline"], device)
+    pipeline_class = {
+        "StableDiffusionInpaintPipeline": StableDiffusionInpaintPipeline,
+        "StableDiffusionXLInpaintPipeline": StableDiffusionXLInpaintPipeline,
+    }[config["pipeline"]]
 
     try:
-        pipe = StableDiffusionInpaintPipeline.from_pretrained(
-            MODEL_ID,
+        pipe = pipeline_class.from_pretrained(
+            config["model_id"],
             torch_dtype=dtype,
             safety_checker=None,
             requires_safety_checker=False,
         )
     except Exception as exc:
         raise DiffusionUnavailableError(
-            f"Could not load diffusion model `{MODEL_ID}`. First run may need network access to download it: {exc}"
+            f"Could not load diffusion model `{config['model_id']}`. First run may need network access to download it: {exc}"
         ) from exc
 
     pipe = pipe.to(device)
     pipe.set_progress_bar_config(disable=True)
     if hasattr(pipe, "enable_attention_slicing"):
         pipe.enable_attention_slicing()
-    return pipe, device, str(dtype).replace("torch.", "")
+    if hasattr(pipe, "enable_vae_slicing"):
+        pipe.enable_vae_slicing()
+    if hasattr(pipe, "enable_vae_tiling"):
+        pipe.enable_vae_tiling()
+    return pipe, device, str(dtype).replace("torch.", ""), config
+
+
+def _model_family() -> str:
+    return os.getenv("FLOOR_DIFFUSION_MODEL", DEFAULT_MODEL_FAMILY).lower()
+
+
+def _model_config() -> dict[str, str | int]:
+    family = _model_family()
+    if family not in MODEL_CONFIGS:
+        allowed = ", ".join(sorted(MODEL_CONFIGS))
+        raise DiffusionUnavailableError(f"Unknown FLOOR_DIFFUSION_MODEL `{family}`. Use one of: {allowed}.")
+    return MODEL_CONFIGS[family]
+
+
+def _pipeline_dtype(pipeline_name: str, device: str) -> torch.dtype:
+    if device == "cuda":
+        return torch.float16
+    if device == "mps" and pipeline_name == "StableDiffusionXLInpaintPipeline":
+        return torch.float16
+    # MPS float16 can produce NaNs with the SD1.5 inpainting pipeline on Apple
+    # Silicon, which turns the final PIL image black. Keep SD1.5 on float32.
+    return torch.float32
 
 
 def _best_device() -> str:
@@ -120,9 +163,9 @@ def _best_device() -> str:
     return "cpu"
 
 
-def _work_size(size: tuple[int, int]) -> tuple[int, int]:
+def _work_size(size: tuple[int, int], max_side: int) -> tuple[int, int]:
     width, height = size
-    scale = min(MAX_SIDE / max(width, height), 1.0)
+    scale = min(max_side / max(width, height), 1.0)
     width = max(64, int(round(width * scale)))
     height = max(64, int(round(height * scale)))
     return _multiple_of_8(width), _multiple_of_8(height)

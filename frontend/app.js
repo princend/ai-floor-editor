@@ -109,6 +109,7 @@ const translations = {
     floorPreviewLabel: "地板預覽",
     texturePreviewLabel: "材質預覽",
     aiInpaintLabel: "AI 重繪",
+    sdxlInpaintLabel: "SDXL AI 重繪",
     pointSummary: "已選取 {include} 個包含點、{exclude} 個排除點。",
     imageLoadFailed: "無法載入圖片。",
     requestFailed: "請求失敗：{status}。",
@@ -184,6 +185,7 @@ const translations = {
     floorPreviewLabel: "floor preview",
     texturePreviewLabel: "texture preview",
     aiInpaintLabel: "AI inpaint",
+    sdxlInpaintLabel: "SDXL AI inpaint",
     pointSummary: "{include} include and {exclude} exclude point(s) selected.",
     imageLoadFailed: "Could not load image.",
     requestFailed: "Request failed with {status}.",
@@ -641,7 +643,9 @@ function setPreviewStatus(message, isError = false) {
 }
 
 function labelForAlgorithm(algorithm) {
+  if (algorithm === "stable_diffusion_xl_inpainting_diffusers") return t("sdxlInpaintLabel");
   if (algorithm === "stable_diffusion_inpainting_diffusers") return t("aiInpaintLabel");
+  if (algorithm === "stable_diffusion_1_5_inpainting_diffusers") return t("aiInpaintLabel");
   if (algorithm === "texture_floor_preview") return t("texturePreviewLabel");
   return t("floorPreviewLabel");
 }

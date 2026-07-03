@@ -8,7 +8,7 @@ Floor replacement has two engines:
 
 - Fast preview: procedural local material rendering for quick iteration.
 - Texture match: uploads a flooring texture image and composites it into the floor mask while preserving source lighting.
-- AI inpaint: Stable Diffusion 1.5 inpainting through Diffusers. The model is lazy-loaded only when this engine is used, and the first run may download several GB from Hugging Face.
+- AI inpaint: SDXL inpainting through Diffusers by default. The model is lazy-loaded only when this engine is used, and the first run may download several GB from Hugging Face.
 
 ## Requirements
 
@@ -36,6 +36,15 @@ Open:
 http://127.0.0.1:8000
 ```
 
+Optional AI inpaint model override:
+
+```bash
+FLOOR_DIFFUSION_MODEL=sdxl uvicorn backend.main:app --host 127.0.0.1 --port 8000
+FLOOR_DIFFUSION_MODEL=sd15 uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+`sdxl` uses `diffusers/stable-diffusion-xl-1.0-inpainting-0.1` and is the default. `sd15` uses the older `runwayml/stable-diffusion-inpainting` fallback.
+
 ## Current MVP Flow
 
 1. Upload an interior photo.
@@ -50,12 +59,12 @@ http://127.0.0.1:8000
 - `POST /api/images` uploads an image.
 - `POST /api/images/{image_id}/mask` generates a mask from include/exclude click points.
 - `POST /api/materials` uploads a flooring material texture.
-- `POST /api/images/{image_id}/inpaint` generates a procedural preview, texture-composited preview, or Stable Diffusion inpaint result.
+- `POST /api/images/{image_id}/inpaint` generates a procedural preview, texture-composited preview, or Stable Diffusion/SDXL inpaint result.
 - `GET /uploads/{filename}` serves uploaded source images.
 - `GET /outputs/{filename}` serves generated masks and overlays.
 
 ## Planned Model Path
 
 - Try SAM2.1 large only if base-plus is still not accurate enough and local performance is acceptable.
-- Improve diffusion prompts and floor-only consistency.
+- Improve reference-texture guidance and floor-only consistency.
 - Keep local generation around 512-768 px for early testing on a 16GB Apple Silicon MacBook Air.
